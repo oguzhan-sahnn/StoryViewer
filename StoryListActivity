@@ -1,0 +1,42 @@
+package com.example.insta
+
+import android.os.Bundle
+import android.widget.ArrayAdapter
+import android.widget.ListView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import kotlin.concurrent.thread
+
+class StoryListActivity : AppCompatActivity() {
+
+    private lateinit var listView: ListView
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_story_list)
+
+        listView = findViewById(R.id.listView)
+
+        // Yeni bir thread içinde API isteği yapıyoruz
+        thread {
+            val activeUsers = StoryFetcher.getActiveStoryUsers()
+            runOnUiThread {
+                if (activeUsers != null && activeUsers.isNotEmpty()) {
+                    val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, activeUsers)
+                    listView.adapter = adapter
+                } else {
+                    Toast.makeText(this, "Hikayeler alınamadı veya hiç aktif kullanıcı yok", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // ListView tıklama işlemi
+        listView.setOnItemClickListener { _, _, position, _ ->
+            val selectedUser = listView.getItemAtPosition(position) as String
+            Toast.makeText(this, "$selectedUser'in hikayeleri alınıyor", Toast.LENGTH_SHORT).show()
+
+            // Burada seçilen kullanıcının hikayelerine gitme işlemleri yapılacak
+        }
+    }
+}
