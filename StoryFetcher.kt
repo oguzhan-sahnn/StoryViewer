@@ -10,18 +10,24 @@ import com.google.gson.annotations.SerializedName
 
 // Data class to represent the response structure (based on Instagram's API response)
 data class StoryResponse(
-    @SerializedName("reels_Tray") val reels_Tray: List<ReelTrayItem>? // Değişken adını API'nin orijinal haliyle uyumlu hale getirdim
+    @SerializedName("tray") val tray: List<ReelTrayItem>? // Değişken adını API'nin orijinal haliyle uyumlu hale getirdim
 )
 
 data class ReelTrayItem(
-    @SerializedName("user") val user: User
+    @SerializedName("id") val id: String,
+    @SerializedName("user") val user: User,
+    @SerializedName("ranked_position") val rankedPosition: Int,
+    @SerializedName("seen_ranked_position") val seenRankedPosition: Int,
+    @SerializedName("story_duration_secs") val srotyDurationSecs: Double,
+    @SerializedName("media_count") val mediaCount: Int
 )
 
 data class User(
     @SerializedName("pk") val userId: String,
     @SerializedName("username") val username: String,
     @SerializedName("full_name") val fullName: String?,
-    @SerializedName("is_private") val isPrivate: Boolean
+    @SerializedName("is_private") val isPrivate: Boolean,
+    @SerializedName("profile_pic_url") val profilePicUrl: String
 )
 
 object StoryFetcher {
@@ -76,7 +82,7 @@ object StoryFetcher {
                 val storyResponse = gson.fromJson(jsonResponse, StoryResponse::class.java)
 
                 // Eğer reels_tray null değilse ve boş değilse kullanıcıları listeye ekliyoruz
-                storyResponse.reels_Tray?.forEach { reelTrayItem ->
+                storyResponse.tray?.forEach { reelTrayItem ->
                     activeUsers.add(reelTrayItem.user.username)
                 }
 
