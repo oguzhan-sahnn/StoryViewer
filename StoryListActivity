@@ -1,42 +1,53 @@
 package com.example.insta
 
+import android.graphics.Color
 import android.os.Bundle
-import android.widget.ArrayAdapter
-import android.widget.ListView
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
 
 class StoryListActivity : AppCompatActivity() {
 
-    private lateinit var listView: ListView
-
+    private lateinit var storyContainer: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_story_list)
 
-        listView = findViewById(R.id.listView)
+        storyContainer = findViewById(R.id.storyContainer)
 
         // Yeni bir thread içinde API isteği yapıyoruz
         thread {
             val activeUsers = StoryFetcher.getActiveStoryUsers()
             runOnUiThread {
                 if (activeUsers != null && activeUsers.isNotEmpty()) {
-                    val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, activeUsers)
-                    listView.adapter = adapter
+                    // Kullanıcılar üzerinde gezin ve baloncukları oluştur
+                    for (user in activeUsers) {
+                        val userButton = Button(this).apply {
+                            text = user
+                            textSize = 14f
+                            setTextColor(Color.WHITE)
+                            setBackgroundResource(R.drawable.story_bubble_background)
+                            layoutParams = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.WRAP_CONTENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT
+                            ).apply {
+                                marginStart = 20
+                                marginEnd = 20
+                            }
+                            setOnClickListener {
+                                Toast.makeText(this@StoryListActivity, "$user'ın hikayeleri alınıyor", Toast.LENGTH_SHORT).show()
+                                // Seçilen kullanıcının hikayelerine gitme işlemleri yapılacak
+                            }
+                        }
+                        storyContainer.addView(userButton)
+                    }
                 } else {
                     Toast.makeText(this, "Hikayeler alınamadı veya hiç aktif kullanıcı yok", Toast.LENGTH_SHORT).show()
                 }
             }
-        }
-
-        // ListView tıklama işlemi
-        listView.setOnItemClickListener { _, _, position, _ ->
-            val selectedUser = listView.getItemAtPosition(position) as String
-            Toast.makeText(this, "$selectedUser'in hikayeleri alınıyor", Toast.LENGTH_SHORT).show()
-
-            // Burada seçilen kullanıcının hikayelerine gitme işlemleri yapılacak
         }
     }
 }
