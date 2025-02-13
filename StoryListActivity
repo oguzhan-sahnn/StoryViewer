@@ -7,6 +7,9 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
+import android.widget.TextView
+
+
 
 class StoryListActivity : AppCompatActivity() {
 
@@ -18,18 +21,18 @@ class StoryListActivity : AppCompatActivity() {
 
         storyContainer = findViewById(R.id.storyContainer)
 
-        // Yeni bir thread içinde API isteği yapıyoruz
         thread {
             val activeUsers = StoryFetcher.getActiveStoryUsers()
             runOnUiThread {
                 if (activeUsers != null && activeUsers.isNotEmpty()) {
-                    // Kullanıcılar üzerinde gezin ve baloncukları oluştur
+
+                    // Story baloncuklarını yatay olarak dizmek için
+                    storyContainer.orientation = LinearLayout.HORIZONTAL
+
                     for (user in activeUsers) {
-                        val userButton = Button(this).apply {
-                            text = user
-                            textSize = 14f
-                            setTextColor(Color.WHITE)
-                            setBackgroundResource(R.drawable.story_bubble_background)
+                        // Her kullanıcı için dikey bir layout oluşturuyoruz
+                        val userLayout = LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL // Dikey hizalama
                             layoutParams = LinearLayout.LayoutParams(
                                 LinearLayout.LayoutParams.WRAP_CONTENT,
                                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -37,12 +40,41 @@ class StoryListActivity : AppCompatActivity() {
                                 marginStart = 20
                                 marginEnd = 20
                             }
+                            gravity = android.view.Gravity.CENTER_HORIZONTAL // Ortalamak için
+                        }
+
+                        // Buton (Hikaye Balonu)
+                        val userButton = Button(this).apply {
+                            text = "" // Butona yazı koymuyoruz
+                            setBackgroundResource(R.drawable.story_bubble_background) // Hikaye balonu arka planı
+                            layoutParams = LinearLayout.LayoutParams(
+                                150, // Genişlik (isteğe bağlı değiştirilebilir)
+                                150  // Yükseklik (isteğe bağlı değiştirilebilir)
+                            )
                             setOnClickListener {
                                 Toast.makeText(this@StoryListActivity, "$user'ın hikayeleri alınıyor", Toast.LENGTH_SHORT).show()
-                                // Seçilen kullanıcının hikayelerine gitme işlemleri yapılacak
                             }
                         }
-                        storyContainer.addView(userButton)
+
+                        // Kullanıcı adı için TextView
+                        val userNameText = TextView(this).apply {
+                            text = user // Kullanıcı adını burada gösteriyoruz
+                            textSize = 12f
+                            setTextColor(Color.WHITE)
+                            layoutParams = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.WRAP_CONTENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT
+                            ).apply {
+                                topMargin = 5 // Butonla arada biraz boşluk bırakıyoruz
+                            }
+                        }
+
+                        // Dikey sıralamak için layout'a buton ve adı ekliyoruz
+                        userLayout.addView(userButton)
+                        userLayout.addView(userNameText)
+
+                        // StoryContainer içine her kullanıcının layout'unu ekliyoruz
+                        storyContainer.addView(userLayout)
                     }
                 } else {
                     Toast.makeText(this, "Hikayeler alınamadı veya hiç aktif kullanıcı yok", Toast.LENGTH_SHORT).show()
