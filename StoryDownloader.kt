@@ -1,32 +1,42 @@
 package com.example.insta
 
 import android.content.Context
-import android.os.Environment
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.widget.Toast
-import java.io.File
-import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
 object StoryDownloader {
 
+    private val cachedStories = mutableMapOf<String, List<Bitmap>>() // Kullanıcıya göre bellekte tutulan hikayeler.
+
     fun downloadStories(context: Context, userId: String) {
-        val storyLinks = AppStories.getStoryLinks(userId)
+        val storyLinks = AppStories.getStoryLinks(userId) // Sadece linkleri çekiyoruz.
 
         if (storyLinks.isEmpty()) {
             Toast.makeText(context, "İndirilecek hikaye bulunamadı!", Toast.LENGTH_SHORT).show()
             return
         }
 
+        val storyBitmaps = mutableListOf<Bitmap>()
+
         for (link in storyLinks) {
-            downloadStory(context, link)
+            val bitmap = downloadStory(link)
+            if (bitmap != null) {
+                storyBitmaps.add(bitmap) // Bellekte saklıyoruz.
+            }
         }
 
-        Toast.makeText(context, "Hikayeler indirildi!", Toast.LENGTH_SHORT).show()
+        if (storyBitmaps.isNotEmpty()) {
+            cachedStories[userId] = storyBitmaps // Kullanıcıya özel bellekte tutuyoruz.
+        }
+
+        Toast.makeText(context, "Hikayeler belleğe indirildi!", Toast.LENGTH_SHORT).show()
     }
 
-    private fun downloadStory(context: Context, urlString: String) {
-        try {
+    private fun downloadStory(urlString: String): Bitmap? {
+        return try {
             val url = URL(urlString)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
@@ -34,28 +44,17 @@ object StoryDownloader {
             connection.connect()
 
             val inputStream = connection.inputStream
-            val fileName = urlString.substringAfterLast("/")
-            val directory = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "StoryViewer")
+            val bitmap = BitmapFactory.decodeStream(inputStream)
 
-            if (!directory.exists()) {
-                directory.mkdirs()
-            }
-
-            val file = File(directory, fileName)
-            val outputStream = FileOutputStream(file)
-
-            val buffer = ByteArray(1024)
-            var length: Int
-            while (inputStream.read(buffer).also { length = it } > 0) {
-                outputStream.write(buffer, 0, length)
-            }
-
-            outputStream.close()
             inputStream.close()
-
+            bitmap
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(context, "Hata: ${e.message}", Toast.LENGTH_SHORT).show()
+            null
         }
+    }
+
+    fun getCachedStories(userId: String): List<Bitmap>? {
+        return cachedStories[userId] // Bellekteki hikayeleri döndürüyoruz.
     }
 }
