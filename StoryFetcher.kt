@@ -8,9 +8,19 @@ import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
 
-// Data class to parse Instagram story response
-data class StoryResponse(
-    @SerializedName("tray") val tray: List<ReelTrayItem>?
+// Tray API yanıtı için veri sınıfı
+data class TrayResponse(
+    @SerializedName("tray") val tray: List<TrayItem>?
+)
+
+data class TrayItem(
+    @SerializedName("id") val id: String,
+    @SerializedName("user") val user: User
+)
+
+// Reels API yanıtı için veri sınıfı
+data class ReelsResponse(
+    @SerializedName("reels") val reels: Map<String, ReelTrayItem>?
 )
 
 data class ReelTrayItem(
@@ -47,12 +57,15 @@ data class User(
 object StoryFetcher {
     private val client = OkHttpClient()
 
+    // API verilerini çekmek için gerekli sessionID ve kullanıcı PK haritalaması
+    private val userPkMap = mutableMapOf<String, String>()
+
+    // **📌 İlk API İsteği: Tray ile Kullanıcıları Getir**
     fun getActiveStoryUsers(): List<String>? {
         val sessionId = AppSession.sessionID
-        val userId = AppSession.userID
 
-        if (sessionId.isNullOrEmpty() || userId.isNullOrEmpty()) {
-            Log.e("StoryFetcher", "sessionID veya userID bulunamadı.")
+        if (sessionId.isNullOrEmpty()) {
+            Log.e("StoryFetcher", "sessionID bulunamadı.")
             return null
         }
 
@@ -64,28 +77,36 @@ object StoryFetcher {
             .header("X-IG-App-ID", "936619743392459")
             .build()
 
-        try {
+        return try {
             val response: Response = client.newCall(request).execute()
             if (response.isSuccessful) {
                 val jsonResponse = response.body?.string()
-                return parseActiveStoryUsers(jsonResponse)
+                parseTrayResponse(jsonResponse)
             } else {
                 Log.e("StoryFetcher", "API Yanıtı Başarısız -> ${response.message}")
+                null
             }
         } catch (e: IOException) {
             Log.e("StoryFetcher", "API isteği sırasında hata oluştu: ${e.localizedMessage}")
+            null
         }
-        return null
     }
 
-    private fun parseActiveStoryUsers(jsonResponse: String?): List<String> {
+    // **📌 Tray Response Parse Et ve Kullanıcıları Çek**
+    private fun parseTrayResponse(jsonResponse: String?): List<String> {
         val activeUsers = mutableListOf<String>()
         if (!jsonResponse.isNullOrEmpty()) {
             val gson = Gson()
             try {
-                val storyResponse = gson.fromJson(jsonResponse, StoryResponse::class.java)
-                storyResponse.tray?.forEach { reelTrayItem ->
-                    activeUsers.add(reelTrayItem.user.username)
+                val trayResponse = gson.fromJson(jsonResponse, TrayResponse::class.java)
+                trayResponse.tray?.forEach { trayItem ->
+                    val username = trayItem.user.username
+                    val userId = trayItem.user.userId
+
+                    activeUsers.add(username)
+                    userPkMap[username] = userId
+
+                    Log.d("StoryFetcher", "Bulunan Kullanıcı: $username (ID: $userId)")
                 }
             } catch (e: Exception) {
                 Log.e("StoryFetcher", "JSON parse hatası: ${e.localizedMessage}")
@@ -94,12 +115,12 @@ object StoryFetcher {
         return activeUsers
     }
 
-    // 🔥 Burası yeni eklenen fonksiyon! Bir kullanıcının tüm hikaye linklerini alır. 🔥
-    fun getStoryLinksForUser(userId: String): List<String>? {
+    // **📌 İkinci API İsteği: Reels ile Kullanıcı Hikayelerini Getir**
+    fun getStoryLinksForUser(username: String): List<String>? {
         val sessionId = AppSession.sessionID
+        val userId = userPkMap[username]
 
-
-        if (sessionId.isNullOrEmpty()) {
+        if (sessionId.isNullOrEmpty() || userId.isNullOrEmpty()) {
             Log.e("StoryFetcher", "sessionID veya userID bulunamadı.")
             return null
         }
@@ -112,36 +133,37 @@ object StoryFetcher {
             .header("X-IG-App-ID", "936619743392459")
             .build()
 
-        try {
+        return try {
             val response: Response = client.newCall(request).execute()
             if (response.isSuccessful) {
                 val jsonResponse = response.body?.string()
-                return extractStoryLinks(jsonResponse, userId)
+                Log.d("StoryFetcher", "API Yanıtı ($username - $userId): $jsonResponse")
+                parseReelsResponse(jsonResponse, userId)
             } else {
                 Log.e("StoryFetcher", "API Yanıtı Başarısız -> ${response.message}")
+                null
             }
         } catch (e: IOException) {
             Log.e("StoryFetcher", "API isteği sırasında hata oluştu: ${e.localizedMessage}")
+            null
         }
-        return null
     }
 
-    private fun extractStoryLinks(jsonResponse: String?, id: String): List<String> {
+    // **📌 Reels Response Parse Et ve Hikayeleri Çek**
+    private fun parseReelsResponse(jsonResponse: String?, userId: String): List<String> {
         val storyLinks = mutableListOf<String>()
         if (!jsonResponse.isNullOrEmpty()) {
             val gson = Gson()
             try {
-                val storyResponse = gson.fromJson(jsonResponse, StoryResponse::class.java)
-                storyResponse.tray?.forEach { reelTrayItem ->
-                    if (reelTrayItem.user.userId == id) {
+                val reelsResponse = gson.fromJson(jsonResponse, ReelsResponse::class.java)
+                reelsResponse.reels?.values?.forEach { reelTrayItem ->
+                    if (reelTrayItem.user.userId == userId) {
                         reelTrayItem.items?.forEach { storyItem ->
                             if (storyItem.mediaType == 1) {
-                                // Fotoğraf hikaye
                                 storyItem.imageVersions?.candidates?.firstOrNull()?.let {
                                     storyLinks.add(it.url)
                                 }
                             } else if (storyItem.mediaType == 2) {
-                                // Video hikaye
                                 storyItem.videoVersions?.firstOrNull()?.let {
                                     storyLinks.add(it.url)
                                 }
@@ -149,7 +171,7 @@ object StoryFetcher {
                         }
                     }
                 }
-                Log.d("StoryFetcher", "$id kullanıcısının hikaye linkleri: $storyLinks")
+                Log.d("StoryFetcher", "$userId kullanıcısının hikaye linkleri: $storyLinks")
             } catch (e: Exception) {
                 Log.e("StoryFetcher", "JSON parse hatası: ${e.localizedMessage}")
             }
